@@ -59,9 +59,15 @@ mqttClient.on("error", (err) => {
 mqttClient.on("message", async (topic, message) => {
   try {
     const data = JSON.parse(message.toString());
-
-    // Log received MQTT data for debugging
     console.log("Received MQTT data:", data);
+
+    // Validate required fields
+    const requiredFields = ["deviceId", "temp", "humid", "soil", "rain", "pump"];
+    const missingFields = requiredFields.filter(f => data[f] === undefined);
+    if (missingFields.length > 0) {
+      console.error("MQTT data missing required fields:", missingFields, data);
+      return;
+    }
 
     // Add timestamp if not present
     if (!data.timestamp) {
@@ -78,7 +84,13 @@ mqttClient.on("message", async (topic, message) => {
       timestamp: new Date(data.timestamp),
     });
 
-    await reading.save();
+    try {
+      await reading.save();
+      console.log("Saved sensor data to MongoDB:", reading);
+    } catch (saveErr) {
+      console.error("Error saving sensor data to MongoDB:", saveErr, data);
+      return;
+    }
 
     const sensorDataToSend = {
       deviceId: reading.deviceId,
@@ -100,7 +112,7 @@ mqttClient.on("message", async (topic, message) => {
       }
     }
   } catch (err) {
-    console.error("Error handling MQTT message:", err);
+    console.error("Error handling MQTT message:", err, message.toString());
   }
 });
 

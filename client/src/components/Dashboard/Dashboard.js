@@ -32,7 +32,7 @@ const Dashboard = ({ history }) => {
     fetchHistory();
 
     const connectWebSocket = () => {
-      ws.current = new WebSocket("ws://localhost:5000");
+      ws.current = new WebSocket(`ws://${window.location.hostname}:5000`);
       const jsonClientType = {
         type: "CLIENT",
       };
