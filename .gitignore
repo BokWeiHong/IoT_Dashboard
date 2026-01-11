@@ -1,0 +1,57 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Node.js dependencies
+/node_modules
+client/node_modules
+
+# Build output
+/build
+client/build
+
+# Testing
+/coverage
+client/coverage
+
+# Environment and secrets
+config.env
+.env*
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Misc
+.pnp
+.pnp.js
+
+# Local database and data
+/db
+*.sqlite
+*.db
+
+# Ignore MongoDB dump files
+/dump
+
+# Ignore systemd service files (optional, uncomment if you don't want to track these)
+# *.service
+
+# Unignore source code and config
+!client/src/
+!client/public/
+!server.js
+!package.json
+!client/package.json
+!README.md
+
+# End of file

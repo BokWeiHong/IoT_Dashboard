@@ -1,0 +1,14 @@
+[Unit]
+Description=IoT Dashboard Node.js Backend
+After=network.target mongod.service mosquitto.service
+
+[Service]
+Type=simple
+User=bokweihong
+WorkingDirectory=/home/bokweihong/IoT_Dashboard
+ExecStart=/usr/bin/npm run build
+Restart=on-failure
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
