@@ -91,6 +91,29 @@ IoT Dashboard is a real-time web application made using ReactJS, NodeJS, Express
    - Open `http://<your-server-ip>:3000` in your browser
    - Login/register to access the dashboard
 
+## IoT Device Firmware (maker.c++)
+
+The `maker.c++` file contains the firmware code for the IoT device (e.g., ESP32, Cytron Maker, etc.) that reads sensor data and publishes it to the MQTT broker.
+
+### How to Use
+
+1. **Open `maker.c++` in your Arduino IDE or PlatformIO.**
+2. **Edit the following lines to match your WiFi and device settings:**
+   ```cpp
+   const char* WIFI_SSID = "YOUR_WIFI_SSID";      // <-- Set your WiFi SSID
+   const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"; // <-- Set your WiFi password
+   const char* MQTT_SERVER = "YOUR_MQTT_BROKER_IP";  // <-- Set your MQTT broker IP or hostname
+   const char* DEVICE_ID = "YOUR_DEVICE_ID";         // <-- Set a unique device ID
+   ```
+3. **Upload the code to your device.**
+4. **Ensure your MQTT broker and backend server are running and accessible.**
+
+The device will read temperature, humidity, soil, and rain sensors, control a pump relay, and publish JSON data to the MQTT topic (default: `iot`).
+
+**Note:**
+- You must manually set your WiFi SSID, password, MQTT server, and device ID in the code before uploading.
+- Each device should have a unique `DEVICE_ID` for proper filtering and display in the dashboard.
+
 ## Development Notes
 - For local development, you can run the frontend and backend separately (`npm start` in both folders). The React dev server runs on port 3000 and the backend on port 5000.
 - To access the React dev server externally, set `HOST=0.0.0.0` in the start script and open port 3000 in your firewall.

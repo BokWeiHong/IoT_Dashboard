@@ -17,11 +17,11 @@ const int RAIN_DRY_THRESHOLD = 4000; // Value ABOVE this = NOT RAINING
 
 
 // ======================= 3. WIFI & MQTT CONFIGURATION =======================
-const char* WIFI_SSID = "GalaxyA54";      
-const char* WIFI_PASSWORD = "syuscd7c";
+const char* WIFI_SSID = "---";      
+const char* WIFI_PASSWORD = "---";
 
 
-const char* MQTT_SERVER = "34.126.102.91";
+const char* MQTT_SERVER = "---";
 const int MQTT_PORT = 1883;
 const char* MQTT_TOPIC = "iot";
 const char* DEVICE_ID = "MakerFeatherS3_01"; // Device ID for JSON
