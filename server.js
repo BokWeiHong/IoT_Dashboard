@@ -84,11 +84,13 @@ mqttClient.on("message", async (topic, message) => {
       timestamp: new Date(data.timestamp),
     });
 
+    console.log("[DEBUG] About to save to MongoDB. Data:", reading);
     try {
-      await reading.save();
-      console.log("Saved sensor data to MongoDB:", reading);
+      const saveResult = await reading.save();
+      console.log("[SUCCESS] Saved sensor data to MongoDB:", saveResult);
     } catch (saveErr) {
-      console.error("Error saving sensor data to MongoDB:", saveErr, data);
+      console.error("[ERROR] Error saving sensor data to MongoDB:", saveErr);
+      console.error("[ERROR] Data that failed to save:", reading);
       return;
     }
 
