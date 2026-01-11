@@ -85,10 +85,10 @@ IoT Dashboard is a real-time web application made using ReactJS, NodeJS, Express
    npm start
    ```
 7. **Open required ports in your firewall/cloud provider:**
-   - Allow TCP traffic on port 5000 (or your configured PORT)
+   - Allow TCP traffic on port 3000 (or your configured PORT)
    - For MQTT, allow port 1883 if using remote devices
 8. **Access the dashboard:**
-   - Open `http://<your-server-ip>:5000` in your browser
+   - Open `http://<your-server-ip>:3000` in your browser
    - Login/register to access the dashboard
 
 ## Development Notes
