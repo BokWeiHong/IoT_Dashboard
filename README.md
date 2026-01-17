@@ -1,40 +1,85 @@
-# IoT Dashboard
+# Structural Health Monitoring (SHM) Dashboard
 
-data to all the connected React clients and the sensor data gets displayed on the dashboard in real-time. The app consists
+A real-time IoT dashboard for monitoring the structural integrity of buildings, bridges, and critical infrastructure through continuous vibration analysis, environmental monitoring, and device health tracking.
 
 ## Overview
 
-IoT Dashboard is a real-time web application made using ReactJS, NodeJS, ExpressJS, MQTT, and MongoDB.
+The SHM Dashboard is a real-time web application built using ReactJS, NodeJS, ExpressJS, MQTT, and MongoDB. It monitors structural health through sensor networks deployed on critical infrastructure, providing early detection of potential structural issues, environmental stress factors, and system anomalies.
 
 ## Architecture
 
 ### Backend
 
 - The backend is built with Node.js and Express.js.
-- It connects to a MongoDB database to store sensor readings.
-- It uses the MQTT protocol to receive sensor data from external devices (e.g., Raspberry Pi, Cytron Maker, etc.).
-- When a device publishes sensor data to the MQTT broker (default: `mqtt://localhost:1883`), the backend subscribes to the relevant topic (default: `sensors/ldr`).
-- Upon receiving a message, the backend parses the data and saves it into MongoDB using the `SensorReading` model.
-- The backend also provides a WebSocket server to broadcast real-time sensor data to connected frontend clients.
+- It connects to a MongoDB database to store structural sensor readings.
+- It uses the MQTT protocol to receive SHM data from edge nodes deployed on infrastructure.
+- When a device publishes SHM data to the MQTT broker (default: `mqtt://localhost:1883`), the backend subscribes to the relevant topic (default: `iot`).
+- Upon receiving a message, the backend parses the SHM JSON payload and saves it into MongoDB using the `SensorReading` model.
+- The backend also provides a WebSocket server to broadcast real-time structural health data to connected frontend clients.
+
+**SHM Data Structure:**
+```json
+{
+  "sensor_id": "shm-node-alpha-01",
+  "location": "beam-section-4F", 
+  "timestamp": "2026-01-18T14:45:00.000Z",
+  "telemetry": {
+    "vibration_x": 0.045,
+    "vibration_y": -0.012,
+    "vibration_z": 1.002,
+    "temperature_c": 32.5,
+    "humidity_percent": 65.0
+  },
+  "device_health": {
+    "battery_v": 3.7,
+    "error_code": 0
+  }
+}
+```
 
 ### Frontend
 
 - The frontend is built with ReactJS.
-- It connects to the backend via WebSockets to receive real-time sensor data updates.
-- The dashboard visualizes sensor data using Chart.js, displaying both graphs and text-based components.
-- Users can log in to access the dashboard and view live sensor readings.
+- It connects to the backend via WebSockets to receive real-time SHM data updates.
+- The dashboard visualizes structural health data using Chart.js, displaying vibration trends, environmental conditions, and device status.
+- Users can log in to access the dashboard and monitor live structural readings from multiple sensor nodes.
 
-## Frontend Details
+**Key Features:**
+- **Vibration Monitoring:** Real-time display of X, Y, Z-axis accelerations with 4-decimal precision
+- **Environmental Tracking:** Temperature and humidity monitoring affecting structural materials  
+- **Device Health:** Battery voltage and error code monitoring for each sensor node
+- **Location-Based Filtering:** Filter data by sensor ID and structural location
+- **Alert System:** Visual indicators for node health, temperature extremes, and battery status
+- **Historical Analytics:** Statistical summaries (Min/Max/Avg) for trend analysis
 
-- **Framework:** ReactJS (located in the `client` folder)
-- **Features:**
-  - Real-time sensor data updates via WebSockets
-  - Historical data fetch via REST API
-  - Data visualization with Chart.js (graphs, tables, summary cards)
-  - Device ID filtering, data table, and summary statistics
-  - User authentication (login/register)
-- **Build/Deploy:**
-  - For production, run `npm run build` in the `client` folder. The build output is served by the backend.
+## SHM Simulation Scenarios
+
+The dashboard includes MQTT simulators to test different structural health scenarios:
+
+### Scenario 1: Normal Operations
+**Command:** `npm run simulate:normal`
+
+Simulates a healthy structural monitoring node with:
+- **Vibration Levels:** Low amplitude vibrations (±0.025g on X/Y axes, ~1g on Z-axis representing gravity)
+- **Environmental:** Moderate temperature (26-30°C) and humidity (55-65%)
+- **Device Health:** Healthy battery (3.65-3.75V) and no error codes
+- **Use Case:** Baseline monitoring of stable infrastructure under normal loading conditions
+
+### Scenario 2: Critical/Dangerous Conditions  
+**Command:** `npm run simulate:danger`
+
+Simulates a structural node under severe stress with:
+- **High Vibrations:** Dangerous resonance levels (0-0.8g X-axis, 0-0.6g Y-axis, erratic Z-axis 0.4-1.6g)
+- **Extreme Environment:** Either freezing conditions (-10 to -5°C) or overheating (55-65°C)
+- **Humidity Extremes:** Very dry (5-15%) or oversaturated (90-100%) conditions
+- **Device Failures:** Critical low battery (2.8-3.2V) and active error codes (1-4)
+- **Use Case:** Testing dashboard response to potential structural failure, extreme weather, or sensor malfunctions
+
+**Alert Conditions:**
+- Vibration amplitudes > 0.3g indicate potential structural resonance or damage
+- Temperature < 0°C or > 40°C suggests extreme environmental stress  
+- Battery < 3.4V indicates imminent sensor failure
+- Error codes > 0 suggest hardware malfunctions requiring maintenance
 
 ## Backend Details
 
@@ -48,11 +93,30 @@ IoT Dashboard is a real-time web application made using ReactJS, NodeJS, Express
   - Serves the React frontend build for public access
 - **MQTT Topic:** Default is `iot` (configurable in `config.env`)
 
-## Step-by-Step Guide (GitHub Deployment)
+## SHM Data Schema
+
+The MongoDB collection stores structural health readings with the following schema:
+
+```javascript
+{
+  sensorId: String,           // e.g., "shm-node-alpha-01"
+  location: String,           // e.g., "beam-section-4F"
+  vibrationX: Number,         // X-axis acceleration (g)
+  vibrationY: Number,         // Y-axis acceleration (g)  
+  vibrationZ: Number,         // Z-axis acceleration (g)
+  temperatureC: Number,       // Temperature in Celsius
+  humidityPercent: Number,    // Relative humidity (%)
+  batteryV: Number,           // Battery voltage (V)
+  errorCode: Number,          // 0=OK, >0=fault codes
+  timestamp: Date             // Reading timestamp
+}
+```
+
+## Step-by-Step Setup Guide
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/IoT_Dashboard.git
+   git clone https://github.com/yourusername/SHM_Dashboard.git
    cd IoT_Dashboard
    ```
 2. **Install backend dependencies:**
@@ -66,12 +130,14 @@ IoT Dashboard is a real-time web application made using ReactJS, NodeJS, Express
    cd ..
    ```
 4. **Configure environment variables:**
-   - Edit `config.env` with your MongoDB URI, MQTT broker URL, and any other required settings.
+   - Edit `config.env` with your MongoDB URI, MQTT broker URL, and SHM system settings.
    - Example:
      ```env
      MONGO_URI=mongodb://localhost:27017/iot_dashboard
      MQTT_URL=mqtt://localhost:1883
      MQTT_TOPIC=iot
+     JWT_SECRET=your_jwt_secret_key
+     JWT_EXPIRE=30d
      PORT=5000
      ```
 5. **Build the frontend for production:**
@@ -84,39 +150,71 @@ IoT Dashboard is a real-time web application made using ReactJS, NodeJS, Express
    ```bash
    npm start
    ```
-7. **Open required ports in your firewall/cloud provider:**
-   - Allow TCP traffic on port 3000 (or your configured PORT)
+7. **Test with simulation scenarios:**
+   ```bash
+   # Terminal 1: Start normal SHM data simulation
+   npm run simulate:normal
+   
+   # Terminal 2: Or test dangerous conditions
+   npm run simulate:danger
+   ```
+8. **Open required ports in your firewall/cloud provider:**
+   - Allow TCP traffic on port 5000 (or your configured PORT)
    - For MQTT, allow port 1883 if using remote devices
-8. **Access the dashboard:**
-   - Open `http://<your-server-ip>:3000` in your browser
-   - Login/register to access the dashboard
+9. **Access the SHM dashboard:**
+   - Open `http://<your-server-ip>:5000` in your browser
+   - Login/register to access the structural health monitoring dashboard
 
-## IoT Device Firmware (maker.c++)
+## SHM Edge Node Firmware (maker.c++)
 
-The `maker.c++` file contains the firmware code for the IoT device (e.g., ESP32, Cytron Maker, etc.) that reads sensor data and publishes it to the MQTT broker.
+The `maker.c++` file contains the firmware code for SHM edge nodes (e.g., ESP32-based accelerometer sensors) that monitor structural vibrations and publish data to the MQTT broker.
 
-### How to Use
+### Hardware Requirements
+- ESP32 or similar microcontroller
+- 3-axis accelerometer/IMU (e.g., MPU6050, ADXL345)
+- Optional: Temperature/humidity sensor (DHT22)
+- Power supply with battery backup for continuous monitoring
+
+### Configuration
 
 1. **Open `maker.c++` in your Arduino IDE or PlatformIO.**
-2. **Edit the following lines to match your WiFi and device settings:**
+2. **Edit the following configuration to match your deployment:**
    ```cpp
-   const char* WIFI_SSID = "YOUR_WIFI_SSID";      // <-- Set your WiFi SSID
-   const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"; // <-- Set your WiFi password
-   const char* MQTT_SERVER = "YOUR_MQTT_BROKER_IP";  // <-- Set your MQTT broker IP or hostname
-   const char* DEVICE_ID = "YOUR_DEVICE_ID";         // <-- Set a unique device ID
+   const char* WIFI_SSID = "YOUR_WIFI_SSID";           // <-- WiFi network
+   const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // <-- WiFi password  
+   const char* MQTT_SERVER = "YOUR_SHM_SERVER_IP";     // <-- Dashboard server IP
+   const char* SENSOR_ID = "shm-node-alpha-01";       // <-- Unique sensor identifier
+   const char* LOCATION = "beam-section-4F";          // <-- Structural location
    ```
-3. **Upload the code to your device.**
-4. **Ensure your MQTT broker and backend server are running and accessible.**
+3. **Upload the code to your ESP32-based SHM node.**
+4. **Mount the sensor node securely to the structural element being monitored.**
 
-The device will read temperature, humidity, soil, and rain sensors, control a pump relay, and publish JSON data to the MQTT topic (default: `iot`).
+### Data Collection
+The SHM node continuously:
+- Reads 3-axis vibration data from accelerometer
+- Monitors environmental temperature and humidity
+- Checks battery voltage and system health
+- Publishes JSON-formatted data every 2 seconds to the MQTT topic
 
-**Note:**
-- You must manually set your WiFi SSID, password, MQTT server, and device ID in the code before uploading.
-- Each device should have a unique `DEVICE_ID` for proper filtering and display in the dashboard.
+**Deployment Notes:**
+- Each node should have a unique `SENSOR_ID` and descriptive `LOCATION`
+- Secure mounting is critical for accurate vibration measurements
+- Consider weatherproofing for outdoor infrastructure deployments
+- Battery backup ensures continuous monitoring during power outages
 
 ## Development Notes
 - For local development, you can run the frontend and backend separately (`npm start` in both folders). The React dev server runs on port 3000 and the backend on port 5000.
 - To access the React dev server externally, set `HOST=0.0.0.0` in the start script and open port 3000 in your firewall.
-- For production/public access, always use the backend to serve the frontend build.
-- Ensure MongoDB and MQTT broker are running and accessible.
+- For production/public access, always use the backend to serve the frontend build from a single port.
+- Ensure MongoDB and MQTT broker (e.g., Mosquitto) are running and accessible.
+- Use the simulation scripts to test dashboard functionality without physical sensors.
+
+## Production Deployment
+For production SHM systems:
+- Use systemd services for automatic startup and monitoring
+- Configure proper SSL/TLS certificates for secure dashboard access  
+- Set up MongoDB with authentication and backup strategies
+- Use secure MQTT with authentication for sensor node communications
+- Implement log rotation and monitoring for system health
+- Consider load balancing for high-availability deployments
 

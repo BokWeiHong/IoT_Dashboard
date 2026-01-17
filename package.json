@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "devStart": "nodemon server.js"
+    "devStart": "nodemon server.js",
+    "simulate:normal": "node scripts/shm_scenario1_normal.js",
+    "simulate:danger": "node scripts/shm_scenario2_danger.js"
   },
   "author": "Subhashis Suara",
   "license": "ISC",

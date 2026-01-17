@@ -1,14 +1,16 @@
 [Unit]
-Description=IoT Dashboard React Frontend
+Description=OBSOLETE - React frontend is served by iot_dashboard.service
 After=network.target
 
 [Service]
-Type=simple
-User=bokweihong
-WorkingDirectory=/home/bokweihong/IoT_Dashboard/client
-ExecStart=/usr/bin/npm run build
-Restart=on-failure
-Environment=NODE_ENV=development
+Type=oneshot
+User=bokwe
+WorkingDirectory=/home/bokwe/IoT_Dashboard/client
+# This service is no longer needed; leaving it as a no-op helper.
+# Build the frontend manually when deploying:
+#   cd /home/bokwe/IoT_Dashboard/client && npm run build
+ExecStart=/bin/true
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target

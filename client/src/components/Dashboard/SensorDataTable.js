@@ -30,24 +30,30 @@ export default function SensorDataTable({ data }) {
         <thead>
           <tr>
             <th style={headerCellStyle}>Timestamp</th>
-            <th style={headerCellStyle}>Device ID</th>
-            <th style={headerCellStyle}>Temp (C)</th>
-            <th style={headerCellStyle}>Humid (%)</th>
-            <th style={headerCellStyle}>Soil</th>
-            <th style={headerCellStyle}>Rain</th>
-            <th style={headerCellStyle}>Pump</th>
+            <th style={headerCellStyle}>Sensor ID</th>
+            <th style={headerCellStyle}>Location</th>
+            <th style={headerCellStyle}>Vib X (g)</th>
+            <th style={headerCellStyle}>Vib Y (g)</th>
+            <th style={headerCellStyle}>Vib Z (g)</th>
+            <th style={headerCellStyle}>Temp (°C)</th>
+            <th style={headerCellStyle}>Humidity (%)</th>
+            <th style={headerCellStyle}>Battery (V)</th>
+            <th style={headerCellStyle}>Error Code</th>
           </tr>
         </thead>
         <tbody>
           {data.map((row, idx) => (
             <tr key={row._id || idx}>
               <td style={cellStyle}>{row.timestamp ? new Date(row.timestamp).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur" }) : "-"}</td>
-              <td style={cellStyle}>{row.deviceId || "-"}</td>
-              <td style={cellStyle}>{row.temp}</td>
-              <td style={cellStyle}>{row.humid}</td>
-              <td style={cellStyle}>{row.soil}</td>
-              <td style={cellStyle}>{row.rain}</td>
-              <td style={cellStyle}>{row.pump}</td>
+              <td style={cellStyle}>{row.sensorId || "-"}</td>
+              <td style={cellStyle}>{row.location || "-"}</td>
+              <td style={cellStyle}>{typeof row.vibrationX === "number" ? row.vibrationX.toFixed(4) : row.vibrationX}</td>
+              <td style={cellStyle}>{typeof row.vibrationY === "number" ? row.vibrationY.toFixed(4) : row.vibrationY}</td>
+              <td style={cellStyle}>{typeof row.vibrationZ === "number" ? row.vibrationZ.toFixed(4) : row.vibrationZ}</td>
+              <td style={cellStyle}>{typeof row.temperatureC === "number" ? row.temperatureC.toFixed(2) : row.temperatureC}</td>
+              <td style={cellStyle}>{typeof row.humidityPercent === "number" ? row.humidityPercent.toFixed(2) : row.humidityPercent}</td>
+              <td style={cellStyle}>{typeof row.batteryV === "number" ? row.batteryV.toFixed(2) : row.batteryV}</td>
+              <td style={cellStyle}>{row.errorCode}</td>
             </tr>
           ))}
         </tbody>

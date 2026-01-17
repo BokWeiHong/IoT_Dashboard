@@ -61,46 +61,80 @@ mqttClient.on("message", async (topic, message) => {
     const data = JSON.parse(message.toString());
     console.log("Received MQTT data:", data);
 
-    // Validate required fields
-    const requiredFields = ["deviceId", "temp", "humid", "soil", "rain", "pump"];
-    const missingFields = requiredFields.filter(f => data[f] === undefined);
-    if (missingFields.length > 0) {
-      console.error("MQTT data missing required fields:", missingFields, data);
+    // Expecting SHM payload structure from edge node
+    // {
+    //   sensor_id: string,
+    //   location: string,
+    //   timestamp: string | number,
+    //   telemetry: {
+    //     vibration_x, vibration_y, vibration_z,
+    //     temperature_c, humidity_percent
+    //   },
+    //   device_health: { battery_v, error_code }
+    // }
+
+    const { sensor_id, location, timestamp, telemetry = {}, device_health = {} } = data;
+
+    const requiredTopLevel = ["sensor_id", "location"]; // timestamp is optional (we'll default)
+    const missingTopLevel = requiredTopLevel.filter((f) => data[f] === undefined || data[f] === null);
+
+    const requiredTelemetry = [
+      "vibration_x",
+      "vibration_y",
+      "vibration_z",
+      "temperature_c",
+      "humidity_percent",
+    ];
+    const missingTelemetry = requiredTelemetry.filter((f) => telemetry[f] === undefined || telemetry[f] === null);
+
+    const requiredHealth = ["battery_v", "error_code"];
+    const missingHealth = requiredHealth.filter((f) => device_health[f] === undefined || device_health[f] === null);
+
+    if (missingTopLevel.length || missingTelemetry.length || missingHealth.length) {
+      console.error("MQTT data missing required SHM fields:", {
+        missingTopLevel,
+        missingTelemetry,
+        missingHealth,
+        data,
+      });
       return;
     }
 
-    // Add timestamp if not present
-    if (!data.timestamp) {
-      data.timestamp = Date.now();
-    }
+    const ts = timestamp ? new Date(timestamp) : new Date();
 
     const reading = new SensorReading({
-      deviceId: data.deviceId,
-      temp: data.temp,
-      humid: data.humid,
-      soil: data.soil,
-      rain: data.rain,
-      pump: data.pump,
-      timestamp: new Date(data.timestamp),
+      sensorId: sensor_id,
+      location,
+      vibrationX: telemetry.vibration_x,
+      vibrationY: telemetry.vibration_y,
+      vibrationZ: telemetry.vibration_z,
+      temperatureC: telemetry.temperature_c,
+      humidityPercent: telemetry.humidity_percent,
+      batteryV: device_health.battery_v,
+      errorCode: device_health.error_code,
+      timestamp: ts,
     });
 
-    console.log("[DEBUG] About to save to MongoDB. Data:", reading);
+    console.log("[DEBUG] About to save SHM data to MongoDB. Data:", reading);
     try {
       const saveResult = await reading.save();
-      console.log("[SUCCESS] Saved sensor data to MongoDB:", saveResult);
+      console.log("[SUCCESS] Saved SHM sensor data to MongoDB:", saveResult);
     } catch (saveErr) {
-      console.error("[ERROR] Error saving sensor data to MongoDB:", saveErr);
+      console.error("[ERROR] Error saving SHM sensor data to MongoDB:", saveErr);
       console.error("[ERROR] Data that failed to save:", reading);
       return;
     }
 
     const sensorDataToSend = {
-      deviceId: reading.deviceId,
-      temp: reading.temp,
-      humid: reading.humid,
-      soil: reading.soil,
-      rain: reading.rain,
-      pump: reading.pump,
+      sensorId: reading.sensorId,
+      location: reading.location,
+      vibrationX: reading.vibrationX,
+      vibrationY: reading.vibrationY,
+      vibrationZ: reading.vibrationZ,
+      temperatureC: reading.temperatureC,
+      humidityPercent: reading.humidityPercent,
+      batteryV: reading.batteryV,
+      errorCode: reading.errorCode,
       timestamp: reading.timestamp.getTime(),
     };
 
@@ -109,7 +143,7 @@ mqttClient.on("message", async (topic, message) => {
         try {
           CLIENTS[i].send(JSON.stringify(sensorDataToSend));
         } catch (err) {
-          console.error("Error sending data to client:", err);
+          console.error("Error sending SHM data to client:", err);
         }
       }
     }

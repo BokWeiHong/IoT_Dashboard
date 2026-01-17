@@ -32,26 +32,26 @@ export function AllSensorsChart({ sensorData, history }) {
         labels: chartHistory.map((d) => d.timestamp && new Date(d.timestamp).toLocaleTimeString()),
         datasets: [
           {
-            label: "Temperature (°C)",
-            data: chartHistory.map((d) => d.temp),
+            label: "Vibration X (g)",
+            data: chartHistory.map((d) => d.vibrationX),
             borderColor: chartColors.red,
             fill: false,
           },
           {
-            label: "Humidity (%)",
-            data: chartHistory.map((d) => d.humid),
+            label: "Vibration Y (g)",
+            data: chartHistory.map((d) => d.vibrationY),
             borderColor: chartColors.blue,
             fill: false,
           },
           {
-            label: "Soil",
-            data: chartHistory.map((d) => d.soil),
+            label: "Vibration Z (g)",
+            data: chartHistory.map((d) => d.vibrationZ),
             borderColor: chartColors.green,
             fill: false,
           },
           {
-            label: "Rain",
-            data: chartHistory.map((d) => d.rain),
+            label: "Temperature (°C)",
+            data: chartHistory.map((d) => d.temperatureC),
             borderColor: chartColors.purple,
             fill: false,
           },
@@ -59,10 +59,28 @@ export function AllSensorsChart({ sensorData, history }) {
       }}
       options={{
         responsive: true,
-        title: { display: true, text: "All Sensor Data Over Time" },
+        title: { display: true, text: "Structural Response Over Time" },
         scales: {
           xAxes: [{ display: true, scaleLabel: { display: true, labelString: "Time" } }],
-          yAxes: [{ display: true, scaleLabel: { display: true, labelString: "Value" } }],
+          yAxes: [{
+            display: true,
+            scaleLabel: { display: true, labelString: "Value" },
+            ticks: {
+              callback: (value) =>
+                typeof value === "number" ? value.toFixed(2) : value,
+            },
+          }],
+        },
+        tooltips: {
+          callbacks: {
+            label: function(tooltipItem, data) {
+              const label = data.datasets[tooltipItem.datasetIndex].label || "";
+              const value = tooltipItem.yLabel;
+              const formatted =
+                typeof value === "number" ? value.toFixed(2) : value;
+              return label ? `${label}: ${formatted}` : formatted;
+            },
+          },
         },
       }}
       height={150}
@@ -93,7 +111,25 @@ export function SingleSensorChart({ sensorData, label, color, valueKey, history 
         title: { display: true, text: label + " Over Time" },
         scales: {
           xAxes: [{ display: true, scaleLabel: { display: true, labelString: "Time" } }],
-          yAxes: [{ display: true, scaleLabel: { display: true, labelString: "Value" } }],
+          yAxes: [{
+            display: true,
+            scaleLabel: { display: true, labelString: "Value" },
+            ticks: {
+              callback: (value) =>
+                typeof value === "number" ? value.toFixed(2) : value,
+            },
+          }],
+        },
+        tooltips: {
+          callbacks: {
+            label: function(tooltipItem, data) {
+              const label = data.datasets[tooltipItem.datasetIndex].label || "";
+              const value = tooltipItem.yLabel;
+              const formatted =
+                typeof value === "number" ? value.toFixed(2) : value;
+              return label ? `${label}: ${formatted}` : formatted;
+            },
+          },
         },
       }}
       height={120}

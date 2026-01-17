@@ -1,12 +1,13 @@
 [Unit]
-Description=IoT Dashboard Node.js Backend
+Description=Structural Health Monitoring Dashboard (Node.js API + React frontend)
 After=network.target mongod.service mosquitto.service
 
 [Service]
 Type=simple
-User=bokweihong
-WorkingDirectory=/home/bokweihong/IoT_Dashboard
-ExecStart=/usr/bin/npm run build
+User=bokwe
+WorkingDirectory=/home/bokwe/IoT_Dashboard
+# server.js serves both the API and the built React app from client/build
+ExecStart=/usr/bin/npm start
 Restart=on-failure
 Environment=NODE_ENV=production
 

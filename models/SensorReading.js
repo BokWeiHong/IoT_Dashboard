@@ -1,28 +1,40 @@
 const mongoose = require("mongoose");
 
 const SensorReadingSchema = new mongoose.Schema({
-  deviceId: {
+  sensorId: {
     type: String,
     required: true,
   },
-  temp: {
-    type: Number,
-    required: true,
-  },
-  humid: {
-    type: Number,
-    required: true,
-  },
-  soil: {
-    type: Number,
-    required: true,
-  },
-  rain: {
-    type: Number,
-    required: true,
-  },
-  pump: {
+  location: {
     type: String,
+    required: true,
+  },
+  vibrationX: {
+    type: Number,
+    required: true,
+  },
+  vibrationY: {
+    type: Number,
+    required: true,
+  },
+  vibrationZ: {
+    type: Number,
+    required: true,
+  },
+  temperatureC: {
+    type: Number,
+    required: true,
+  },
+  humidityPercent: {
+    type: Number,
+    required: true,
+  },
+  batteryV: {
+    type: Number,
+    required: true,
+  },
+  errorCode: {
+    type: Number,
     required: true,
   },
   timestamp: {
