@@ -209,6 +209,93 @@ The SHM node continuously:
 - Ensure MongoDB and MQTT broker (e.g., Mosquitto) are running and accessible.
 - Use the simulation scripts to test dashboard functionality without physical sensors.
 
+## Production Deployment with HTTPS and Domain
+
+### Setting Up Domain and SSL Certificate
+
+1. **Domain Setup:**
+   - Purchase a domain name (e.g., `shm-monitor.com` from providers like Namecheap, GoDaddy)
+   - Point the domain's A record to your server's public IP address
+   - Wait for DNS propagation (can take up to 48 hours)
+
+2. **Install Nginx (reverse proxy):**
+   ```bash
+   sudo apt update
+   sudo apt install nginx
+   sudo systemctl enable nginx
+   sudo systemctl start nginx
+   ```
+
+3. **Install Certbot for Let's Encrypt:**
+   ```bash
+   sudo apt install certbot python3-certbot-nginx
+   ```
+
+4. **Configure Nginx for your domain:**
+   ```bash
+   sudo nano /etc/nginx/sites-available/shm-dashboard
+   ```
+   
+   Add this configuration:
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com www.your-domain.com;
+       
+       location / {
+           proxy_pass http://localhost:5000;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_cache_bypass $http_upgrade;
+       }
+   }
+   ```
+
+5. **Enable the site:**
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/shm-dashboard /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+6. **Get SSL certificate:**
+   ```bash
+   sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+   ```
+
+7. **Set up auto-renewal:**
+   ```bash
+   sudo crontab -e
+   ```
+   Add this line:
+   ```
+   0 12 * * * /usr/bin/certbot renew --quiet
+   ```
+
+8. **Update firewall rules:**
+   ```bash
+   sudo ufw allow 'Nginx Full'
+   sudo ufw allow ssh
+   sudo ufw enable
+   ```
+
+### Final Configuration
+
+After setup, your SHM dashboard will be accessible at:
+- `https://your-domain.com` (secure HTTPS)
+- WebSocket connections will automatically upgrade to WSS (secure WebSocket)
+
+**Security Notes:**
+- Certbot automatically configures HTTPS redirect and strong SSL settings
+- The Node.js app continues running on localhost:5000 (not publicly accessible)
+- Only Nginx serves public traffic on ports 80/443
+- SSL certificates auto-renew every 90 days
+
 ## Production Deployment
 For production SHM systems:
 - Use systemd services for automatic startup and monitoring

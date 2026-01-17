@@ -32,7 +32,9 @@ const Dashboard = ({ history }) => {
     fetchHistory();
 
     const connectWebSocket = () => {
-      ws.current = new WebSocket(`ws://${window.location.hostname}:5000`);
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      // Use window.location.host (host[:port]) so it goes through Nginx reverse proxy
+      ws.current = new WebSocket(`${protocol}://${window.location.host}`);
       const jsonClientType = {
         type: "CLIENT",
       };
@@ -237,7 +239,7 @@ const Dashboard = ({ history }) => {
             <span style={{ fontSize: 18 }}>🏗️</span>
             <span style={{ fontWeight: 700 }}>Node Health:</span>
             <span style={{ color: nodeHealth === 'OK' ? 'green' : 'red', fontWeight: 700 }}>{nodeHealth}</span>
-            <span style={{ fontSize: 12 }}>({isDangerous ? "⚠️ CRITICAL" : `errorCode: ${errorCode}`})</span>
+            <span style={{ fontSize: 12 }}>({isDangerous ? "⚠️ CRITICAL" : "NORMAL"})</span>
           </div>
           {/* Temperature Status */}
           <div style={{ background: '#f0f8ff', border: '1px solid #b0d4f1', borderRadius: 6, padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1, minWidth: 200 }}>

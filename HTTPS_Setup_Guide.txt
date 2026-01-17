@@ -1,0 +1,282 @@
+# Complete HTTPS Setup Guide for SHM Dashboard
+# Step-by-Step Instructions
+
+## Prerequisites
+- Ubuntu/Debian server with your SHM Dashboard running
+- Domain name (e.g., chuckbok.cloud-ip.cc)
+- Administrative access to your DNS provider
+- Administrative access to your cloud provider (GCP, AWS, etc.)
+
+## Phase 1: Initial Server Setup
+
+### Step 1: Get Your Server's Public IP
+```bash
+curl -s ifconfig.me
+```
+Note down this IP address (e.g., 34.143.171.142)
+
+### Step 2: Ensure Your SHM Dashboard is Running
+```bash
+systemctl is-active iot_dashboard.service
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5000
+```
+Should return "active" and "200"
+
+## Phase 2: Install and Configure Web Server
+
+### Step 3: Install Nginx and Certbot
+```bash
+sudo apt update
+sudo apt install nginx certbot python3-certbot-nginx -y
+```
+
+### Step 4: Enable and Start Nginx
+```bash
+sudo systemctl enable nginx
+sudo systemctl start nginx
+sudo systemctl status nginx
+```
+
+### Step 5: Create Initial Nginx Configuration
+```bash
+sudo nano /etc/nginx/sites-available/shm-dashboard
+```
+
+Add this configuration (replace YOUR_DOMAIN with your actual domain):
+```nginx
+server {
+    listen 80;
+    server_name YOUR_DOMAIN www.YOUR_DOMAIN;
+    
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+    }
+}
+```
+
+### Step 6: Enable the Site and Remove Default
+```bash
+sudo ln -s /etc/nginx/sites-available/shm-dashboard /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## Phase 3: DNS Configuration
+
+### Step 7: Configure DNS A Record
+1. Log into your DNS provider control panel
+2. Find DNS management or DNS records section
+3. Look for A records
+4. Create or edit A record:
+   - Name/Host: @ (or leave blank for root domain)
+   - Type: A
+   - Value/Points to: YOUR_SERVER_IP (e.g., 34.143.171.142)
+   - TTL: 300-3600 seconds
+5. If you want www subdomain, create another A record:
+   - Name/Host: www
+   - Type: A 
+   - Value: YOUR_SERVER_IP
+6. Save changes
+
+### Step 8: Verify DNS Propagation
+```bash
+# Check if DNS points to correct IP
+nslookup YOUR_DOMAIN
+dig +short YOUR_DOMAIN
+
+# Wait until this shows your server IP, not the old IP
+# May take 5-60 minutes depending on TTL settings
+```
+
+## Phase 4: Firewall Configuration
+
+### Step 9: Configure Server Firewall
+```bash
+sudo ufw enable
+sudo ufw allow ssh
+sudo ufw allow 'Nginx Full'
+sudo ufw status
+```
+
+### Step 10: Configure Cloud Provider Firewall
+
+For Google Cloud Platform:
+```bash
+# Run from your local machine, not the server
+gcloud compute firewall-rules create allow-web --allow tcp:80,tcp:443 --source-ranges 0.0.0.0/0
+```
+
+For AWS EC2:
+- Go to EC2 Console → Security Groups
+- Edit inbound rules for your instance
+- Add rules: HTTP (80) and HTTPS (443) from 0.0.0.0/0
+
+For other providers:
+- Check provider documentation to open ports 80 and 443
+
+## Phase 5: SSL Certificate Installation
+
+### Step 11: Test HTTP Access First
+```bash
+curl -I http://YOUR_DOMAIN
+```
+Should return HTTP 200 or show your site content
+
+### Step 12: Get SSL Certificate
+```bash
+sudo certbot --nginx -d YOUR_DOMAIN -d www.YOUR_DOMAIN
+```
+
+Follow prompts:
+- Enter email address for renewal notifications
+- Agree to Terms of Service (Y)
+- Choose whether to share email with EFF (Y/N)
+- Certbot will automatically configure HTTPS redirect
+
+### Step 13: Verify SSL Certificate
+```bash
+sudo certbot certificates
+curl -I https://YOUR_DOMAIN
+```
+
+### Step 14: Test Auto-Renewal
+```bash
+sudo certbot renew --dry-run
+sudo systemctl status certbot.timer
+```
+
+## Phase 6: Final Configuration
+
+### Step 15: Update Nginx Config for Production (Optional)
+```bash
+sudo nano /etc/nginx/sites-available/shm-dashboard
+```
+
+Add security headers:
+```nginx
+# Add inside server block for HTTPS
+add_header X-Frame-Options DENY;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
+```
+
+### Step 16: Final Tests
+```bash
+# Test all access methods
+curl -I http://YOUR_DOMAIN          # Should redirect to HTTPS
+curl -I https://YOUR_DOMAIN         # Should return 200
+curl -I https://www.YOUR_DOMAIN     # Should return 200
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue: Domain doesn't resolve to correct IP
+```bash
+# Check current DNS
+dig +short YOUR_DOMAIN
+# If wrong IP, update DNS A record and wait for propagation
+```
+
+#### Issue: "Connection refused" or timeouts
+```bash
+# Check if services are running
+systemctl status nginx iot_dashboard.service
+# Check if ports are open
+sudo ss -tlnp | grep -E ":80|:443|:5000"
+# Check firewall
+sudo ufw status
+```
+
+#### Issue: Certbot validation fails
+```bash
+# Ensure domain points to correct IP first
+nslookup YOUR_DOMAIN
+# Check if HTTP is accessible from internet
+curl -I http://YOUR_DOMAIN
+# If fails, check cloud provider firewall settings
+```
+
+#### Issue: SSL certificate warnings on IP access
+This is normal. SSL certificates are for domain names, not IP addresses.
+Use domain name or click "Advanced" → "Proceed" in browser.
+
+#### Issue: "404 Not Found" from Nginx
+```bash
+# Check Nginx configuration
+sudo nginx -t
+sudo nginx -T | grep server_name
+# Ensure default site is removed
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo systemctl reload nginx
+```
+
+#### Issue: WebSocket connections fail
+Ensure these headers are in your Nginx config:
+```nginx
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection 'upgrade';
+```
+
+## Security Best Practices
+
+1. **Keep certificates updated**: Certbot auto-renewal should handle this
+2. **Monitor expiration**: Check `sudo certbot certificates` monthly
+3. **Use strong SSL**: Modern browsers require TLS 1.2+
+4. **Security headers**: Add HSTS, XSS protection, etc.
+5. **Regular updates**: Keep Nginx, Certbot, and OS updated
+
+## Maintenance Commands
+
+### Check SSL Certificate Status
+```bash
+sudo certbot certificates
+```
+
+### Renew Certificates Manually
+```bash
+sudo certbot renew
+```
+
+### Test Configuration
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### View Logs
+```bash
+sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/letsencrypt/letsencrypt.log
+```
+
+## Success Checklist
+
+- [ ] Server IP obtained and noted
+- [ ] Domain DNS A record points to server IP  
+- [ ] Nginx installed and configured
+- [ ] Cloud provider firewall allows ports 80/443
+- [ ] Server firewall allows HTTP/HTTPS
+- [ ] HTTP access works (http://domain)
+- [ ] SSL certificate obtained successfully
+- [ ] HTTPS access works (https://domain)
+- [ ] HTTP redirects to HTTPS automatically
+- [ ] Certificate auto-renewal is enabled
+- [ ] WebSocket connections work for real-time data
+
+Your SHM Dashboard should now be accessible securely at:
+- https://YOUR_DOMAIN
+- All HTTP traffic automatically redirects to HTTPS
+- SSL certificate renews automatically every 90 days
