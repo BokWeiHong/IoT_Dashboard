@@ -1,0 +1,182 @@
+4.1 Development Environment Setup
+
+Overview & assumptions
+- Target OS: Linux (commands below tested on Debian/Ubuntu). macOS/Windows require equivalent package managers (Homebrew/Chocolatey).
+- Purpose: Provide a reproducible developer workstation for running and testing the IoT Dashboard end-to-end (server, client, Pub/Sub emulator or GCP, and MongoDB).
+
+Required software (versions recommended)
+- Node.js LTS (>=16): runtime for server and functions.
+- npm (bundled with Node) or yarn (optional).
+- MongoDB Server (4.4+ recommended) or MongoDB Atlas account.
+- Google Cloud SDK (`gcloud`) and optionally `functions-framework` for local function testing.
+- Git for source control.
+- Optional: `nvm` for managing Node versions, `pm2` for process management, `nodemon` for hot reloads.
+
+1. Install Node.js (using `nvm` – recommended)
+
+```bash
+# install nvm (if not present)
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# install Node LTS
+nvm install --lts
+nvm use --lts
+node -v
+npm -v
+```
+
+Alternative (Debian/Ubuntu via NodeSource):
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+2. Install MongoDB (local development)
+
+Option A: Install community server on Ubuntu/Debian
+
+```bash
+wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+sudo systemctl enable mongod
+sudo systemctl start mongod
+sudo systemctl status mongod
+```
+
+Option B: Use MongoDB Atlas (managed)
+- Create a free cluster on https://www.mongodb.com/cloud/atlas and whitelist your IP for dev.
+- Create a database user and note the connection string.
+
+3. Install Google Cloud SDK & authenticate
+
+```bash
+# Debian/Ubuntu (apt)
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+sudo apt-get update && sudo apt-get install -y google-cloud-sdk
+
+# initialize and authenticate (interactive)
+gcloud init
+# or for service account authentication:
+# gcloud auth activate-service-account --key-file=/path/to/service-account.json
+```
+
+4. Create a GCP service account for CI / local deployment (if you will use GCP)
+
+```bash
+# replace vars
+PROJECT=my-gcp-project
+SA_NAME=iot-dashboard-sa
+
+gcloud iam service-accounts create $SA_NAME --project=$PROJECT --display-name="IoT Dashboard SA"
+# grant permissions
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA_NAME@$PROJECT.iam.gserviceaccount.com" --role="roles/pubsub.editor"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA_NAME@$PROJECT.iam.gserviceaccount.com" --role="roles/cloudfunctions.developer"
+
+# create key (store securely)
+gcloud iam service-accounts keys create ~/sa-key.json --iam-account=$SA_NAME@$PROJECT.iam.gserviceaccount.com --project=$PROJECT
+export GOOGLE_APPLICATION_CREDENTIALS=~/sa-key.json
+```
+
+Security note: keep service account keys out of source control. Use Secret Manager for production.
+
+5. Clone repo and install dependencies
+
+```bash
+git clone <repo-url>
+cd IoT_Dashboard
+npm install
+cd client && npm install && cd ..
+```
+
+6. Configure environment variables
+- Create `config.env` or `.env` in the repo root (do not commit it).
+- Minimal example:
+
+```text
+MONGO_URI=mongodb://devuser:devpass@localhost:27017/iot_dashboard
+PUBSUB_PROJECT=my-gcp-project
+PUBSUB_TOPIC_SENSOR_READINGS=sensor-readings
+GOOGLE_APPLICATION_CREDENTIALS=/home/you/sa-key.json
+PORT=3000
+```
+
+7. Initialize MongoDB for the app (local example)
+
+```bash
+# connect via mongo shell
+mongosh
+# in shell:
+use iot_dashboard
+db.createUser({user: 'devuser', pwd: 'devpass', roles: [{role: 'readWrite', db: 'iot_dashboard'}]})
+# create index (run in your app or via shell)
+db.sensor_readings.createIndex({ deviceId: 1, timestamp: -1 })
+```
+
+8. Start development services
+
+- Start backend server (dev):
+
+```bash
+# from repo root
+npm run start
+# or
+node server.js
+```
+
+- Start client UI:
+
+```bash
+cd client
+npm start
+```
+
+- Optional: start Pub/Sub emulator for fully local testing
+
+```bash
+gcloud components install pubsub-emulator
+gcloud beta emulators pubsub start --host-port=localhost:8085
+# In another terminal, configure env:
+export PUBSUB_EMULATOR_HOST=localhost:8085
+# create topic via emulator gcloud commands (same as prod)
+```
+
+9. Run device simulator (dev messages)
+
+```bash
+node scripts/shm_scenario1_normal.js
+```
+
+10. Verify end-to-end
+- Check backend logs for received messages and MongoDB inserts.
+- Query MongoDB for recent documents:
+
+```bash
+mongosh --eval 'db.getSiblingDB("iot_dashboard").sensor_readings.find().sort({timestamp:-1}).limit(5).pretty()'
+```
+
+Troubleshooting tips
+- `ECONNREFUSED` to MongoDB: ensure `mongod` is running and `MONGO_URI` matches credentials/host.
+- gcloud auth errors: run `gcloud auth login` or set `GOOGLE_APPLICATION_CREDENTIALS` to a valid key file.
+- Cloud Functions cold starts: increase memory or use warmers for production-critical low-latency paths.
+
+Best practices for local dev
+- Use `nvm` to pin Node versions across devs.
+- Use a dedicated dev database and data retention/TTL to avoid unbounded growth.
+- Securely manage credentials: do not store keys in source control; use `.gitignore`.
+- Use Docker for consistent dev environments (optional): provide a `docker-compose.yml` if desired.
+
+Commands summary
+- Install deps: `npm install`
+- Start server: `node server.js` or `npm run start`
+- Start client: `cd client && npm start`
+- Publish test message (gcloud):
+
+```bash
+gcloud pubsub topics publish sensor-readings --message='{"deviceId":"dev-1","timestamp":"2026-01-01T00:00:00Z","measurements":{"temp":22}}'
+```

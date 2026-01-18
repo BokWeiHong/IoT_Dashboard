@@ -1,0 +1,134 @@
+4.2 Step-by-Step Implementation Guide
+
+Goal: Walk through the minimal, easy-to-follow steps to get devices -> Pub/Sub -> Cloud Function -> MongoDB -> Dashboard working.
+
+Prerequisite: Follow `docs/development_environment_setup.txt` to prepare your workstation and environment variables.
+
+Step 1 — Prepare GCP project & service account
+1. Create or select a GCP project:
+
+```bash
+gcloud projects create my-gcp-project
+gcloud config set project my-gcp-project
+```
+
+2. Create service account and grant permissions:
+
+```bash
+SA=iot-dashboard-sa
+gcloud iam service-accounts create $SA --display-name="IoT Dashboard SA"
+# grant roles needed for Pub/Sub and Functions
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA@$PROJECT.iam.gserviceaccount.com" --role="roles/pubsub.editor"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA@$PROJECT.iam.gserviceaccount.com" --role="roles/cloudfunctions.developer"
+
+# create key
+gcloud iam service-accounts keys create ~/sa-key.json --iam-account=$SA@$PROJECT.iam.gserviceaccount.com
+export GOOGLE_APPLICATION_CREDENTIALS=~/sa-key.json
+```
+
+Step 2 — Create Pub/Sub topics & subscriptions
+
+```bash
+gcloud pubsub topics create sensor-readings --project=$PUBSUB_PROJECT
+gcloud pubsub subscriptions create sensor-readings-sub --topic=sensor-readings --ack-deadline=30 --project=$PUBSUB_PROJECT
+# optional DLQ
+gcloud pubsub topics create sensor-readings-dlq --project=$PUBSUB_PROJECT
+```
+
+Step 3 — Implement and test Cloud Function (Node.js)
+1. Create a small function handler `functions/processSensorReading/index.js`:
+
+```javascript
+// example outline
+const { MongoClient } = require('mongodb');
+let client;
+exports.processSensorReading = async (message, context) => {
+  const payload = JSON.parse(Buffer.from(message.data, 'base64').toString());
+  // basic validation
+  if (!payload.deviceId || !payload.timestamp) throw new Error('invalid');
+  if (!client) {
+    client = new MongoClient(process.env.MONGO_URI, { useUnifiedTopology: true });
+    await client.connect();
+  }
+  const db = client.db('iot_dashboard');
+  await db.collection('sensor_readings').insertOne({ ...payload });
+};
+```
+
+2. Deploy to GCP (or use emulator for local testing):
+
+```bash
+gcloud functions deploy processSensorReading \
+  --runtime=nodejs18 \
+  --trigger-topic=sensor-readings \
+  --region=us-central1 \
+  --set-env-vars=MONGO_URI=$MONGO_URI
+```
+
+3. Test by publishing a message:
+
+```bash
+gcloud pubsub topics publish sensor-readings --message='{"deviceId":"dev-1","timestamp":"2026-01-01T00:00:00Z","measurements":{"temp":22}}'
+```
+
+Step 4 — Configure MongoDB & indexing
+1. Create database and user (see `docs/development_environment_setup.txt`).
+2. Create indexes used by dashboard queries:
+
+```javascript
+// run in mongo shell or script
+db.sensor_readings.createIndex({ deviceId: 1, timestamp: -1 })
+```
+
+Step 5 — Wire backend server to read from DB and expose APIs
+1. Confirm server uses `process.env.MONGO_URI`.
+2. Add endpoints used by the frontend (e.g., `/api/readings?deviceId=...&from=...&to=...`).
+3. Test endpoints via `curl` or the browser.
+
+Step 6 — Run device simulator & verify
+
+```bash
+# from repo root
+node scripts/shm_scenario1_normal.js
+# then check MongoDB and server logs for ingestion
+```
+
+Step 7 — Deploy frontend (client)
+1. If using static hosting, build the client:
+
+```bash
+cd client
+npm run build
+# deploy build/ to your static host or copy to server's public dir
+```
+
+2. Confirm dashboard reads from API and displays recent data.
+
+Step 8 — Observability & error handling
+- Add structured logs with correlation IDs (deviceId + messageId).
+- Configure Pub/Sub dead-letter topics and function retries.
+- Monitor key metrics: Pub/Sub backlog size, function errors, DB insert latency.
+
+Step 9 — Production checklist
+- Replace local connection strings with managed services and secrets in Secret Manager.
+- Enable CMEK if required; restrict network egress via VPC Connector.
+- Set up CI/CD for functions and frontend builds.
+- Configure alerting for failure thresholds.
+
+Quick test commands
+- Publish a sample message:
+
+```bash
+gcloud pubsub topics publish sensor-readings --message='{"deviceId":"dev-test","timestamp":"2026-01-01T00:00:00Z","measurements":{"temp":21}}'
+```
+
+- Query recent readings via `mongosh`:
+
+```bash
+mongosh --eval 'db.getSiblingDB("iot_dashboard").sensor_readings.find().sort({timestamp:-1}).limit(10).pretty()'
+```
+
+Support notes
+- For heavy ingestion, move to batching on devices or a gateway to reduce Pub/Sub and function invocation rate.
+- Use connection pooling / keep-alive for MongoDB to avoid connection exhaustion.
+- Keep functions small and single-purpose to ease retries and troubleshooting.

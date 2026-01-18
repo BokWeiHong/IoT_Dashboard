@@ -56,62 +56,77 @@ mqttClient.on("error", (err) => {
   console.error("MQTT error:", err);
 });
 
+// Validate incoming SHM payloads
+const validateSHMPayload = (data) => {
+  const errors = [];
+  if (!data || typeof data !== "object") {
+    errors.push("Payload must be a JSON object");
+    return { valid: false, errors };
+  }
+
+  const { sensor_id, location, telemetry = {}, device_health = {} } = data;
+
+  if (!sensor_id || typeof sensor_id !== "string" || sensor_id.length > 128) {
+    errors.push("sensor_id is required and must be a string <= 128 chars");
+  }
+  if (!location || typeof location !== "string" || location.length > 128) {
+    errors.push("location is required and must be a string <= 128 chars");
+  }
+
+  const num = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const vx = num(telemetry.vibration_x);
+  const vy = num(telemetry.vibration_y);
+  const vz = num(telemetry.vibration_z);
+  const temp = num(telemetry.temperature_c);
+  const hum = num(telemetry.humidity_percent);
+
+  if (vx === null || Math.abs(vx) > 50) errors.push("vibration_x must be a finite number within [-50,50]");
+  if (vy === null || Math.abs(vy) > 50) errors.push("vibration_y must be a finite number within [-50,50]");
+  if (vz === null || Math.abs(vz) > 50) errors.push("vibration_z must be a finite number within [-50,50]");
+
+  if (temp === null || temp < -100 || temp > 200) errors.push("temperature_c must be a finite number within [-100,200]");
+  if (hum === null || hum < 0 || hum > 100) errors.push("humidity_percent must be a finite number within [0,100]");
+
+  const batt = num(device_health.battery_v);
+  const errCode = device_health.error_code;
+  if (batt === null || batt < 0 || batt > 20) errors.push("battery_v must be a finite number within [0,20]");
+  if (errCode === undefined || errCode === null || typeof errCode !== "number") errors.push("error_code must be a number");
+
+  return { valid: errors.length === 0, errors };
+};
+
+// MQTT message handler with validation and sanitization
 mqttClient.on("message", async (topic, message) => {
   try {
     const data = JSON.parse(message.toString());
     console.log("Received MQTT data:", data);
 
-    // Expecting SHM payload structure from edge node
-    // {
-    //   sensor_id: string,
-    //   location: string,
-    //   timestamp: string | number,
-    //   telemetry: {
-    //     vibration_x, vibration_y, vibration_z,
-    //     temperature_c, humidity_percent
-    //   },
-    //   device_health: { battery_v, error_code }
-    // }
-
-    const { sensor_id, location, timestamp, telemetry = {}, device_health = {} } = data;
-
-    const requiredTopLevel = ["sensor_id", "location"]; // timestamp is optional (we'll default)
-    const missingTopLevel = requiredTopLevel.filter((f) => data[f] === undefined || data[f] === null);
-
-    const requiredTelemetry = [
-      "vibration_x",
-      "vibration_y",
-      "vibration_z",
-      "temperature_c",
-      "humidity_percent",
-    ];
-    const missingTelemetry = requiredTelemetry.filter((f) => telemetry[f] === undefined || telemetry[f] === null);
-
-    const requiredHealth = ["battery_v", "error_code"];
-    const missingHealth = requiredHealth.filter((f) => device_health[f] === undefined || device_health[f] === null);
-
-    if (missingTopLevel.length || missingTelemetry.length || missingHealth.length) {
-      console.error("MQTT data missing required SHM fields:", {
-        missingTopLevel,
-        missingTelemetry,
-        missingHealth,
-        data,
-      });
+    // Validate payload
+    const validation = validateSHMPayload(data);
+    if (!validation.valid) {
+      console.error("MQTT data failed validation:", validation.errors, "raw:", data);
       return;
     }
 
+    const { sensor_id, location, timestamp, telemetry = {}, device_health = {} } = data;
+
     const ts = timestamp ? new Date(timestamp) : new Date();
 
+    // Coerce and sanitize numeric inputs
     const reading = new SensorReading({
-      sensorId: sensor_id,
-      location,
-      vibrationX: telemetry.vibration_x,
-      vibrationY: telemetry.vibration_y,
-      vibrationZ: telemetry.vibration_z,
-      temperatureC: telemetry.temperature_c,
-      humidityPercent: telemetry.humidity_percent,
-      batteryV: device_health.battery_v,
-      errorCode: device_health.error_code,
+      sensorId: String(sensor_id).trim(),
+      location: String(location).trim(),
+      vibrationX: Number(telemetry.vibration_x),
+      vibrationY: Number(telemetry.vibration_y),
+      vibrationZ: Number(telemetry.vibration_z),
+      temperatureC: Number(telemetry.temperature_c),
+      humidityPercent: Number(telemetry.humidity_percent),
+      batteryV: Number(device_health.battery_v),
+      errorCode: Number(device_health.error_code),
       timestamp: ts,
     });
 

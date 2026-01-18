@@ -1,0 +1,193 @@
+5 Security Measures Implemented
+
+5.1 Security Measures Implemented
+
+Device & Edge Security
+- Device identity: devices are provisioned with strong identities (X.509 certificates or unique device keys) bound to device records.
+- Secure boot & firmware: firmware images are signed; devices verify signatures before install; OTA updates require signed packages.
+- Hardware protection: use secure elements/TPM where available to store private keys and credentials.
+- Least-privilege on devices: device agents run with minimal privileges and avoid exposing management interfaces publicly.
+
+Transport & Ingestion Security
+- Encrypted transport: all device-to-cloud and service-to-service traffic uses TLS/DTLS (HTTPS, MQTT over TLS) to protect data-in-transit.
+- Message authentication: messages include authentication tokens or signed payloads to prevent spoofing.
+- Secure onboarding: device provisioning uses a secure bootstrap process (pre-shared provisioning token or certificate signing) and short-lived credentials after onboarding.
+- Network restrictions: when possible, limit device egress to known endpoints and use firewall rules or VPNs for gateways.
+
+Pub/Sub & Messaging Security
+- IAM controls: Pub/Sub topics and subscriptions use principle of least privilege with IAM roles for publishers and subscribers.
+- Topic separation: logical separation of topics by environment and sensitivity (e.g., `sensor-readings`, `device-events`, `control-commands`).
+- Dead-letter handling: failed or malformed messages route to dead-letter topics for safe inspection rather than being retried indefinitely.
+- Message size/validation: enforce message size limits and validate payload schemas at ingestion to reduce attack surface.
+- VPC Service Controls / network policy: restrict Pub/Sub access where required to specific projects or VPCs.
+
+Compute (Cloud Functions) Security
+- Least-privilege IAM: functions run with service accounts limited to required roles (Pub/Sub subscriber, minimal DB write role).
+- Input validation & sanitization: functions validate and sanitize all message fields to prevent injection attacks before writing to storage.
+- Idempotency & safe retries: functions are designed to be idempotent to handle at-least-once delivery semantics safely.
+- VPC egress control: functions that access internal resources use VPC connectors and restricted egress to prevent data exfiltration.
+- Dependency management: functions use vetted dependencies; automated dependency scanning and regular updates are enforced.
+
+Storage (MongoDB) Security
+- Authentication: MongoDB requires authenticated connections with strong credentials or managed IAM-based access in hosted offerings.
+- TLS for DB connections: enforce TLS for all MongoDB client connections.
+- Network access controls: limit DB access via IP whitelists, VPC peering, or private endpoints.
+- Encryption at rest: enable encryption at rest (managed or via disk-level encryption) and consider CMEK for customer-managed keys.
+- Role-based access control: grant application components only the minimum DB roles they need (read/write on specific collections).
+- Auditing & backups: enable audit logging and secure backups with encryption and access controls.
+
+Secrets & Credential Management
+- Secret Manager: store DB URIs, service account keys, and other secrets in a secret manager rather than in source control.
+- Short-lived credentials: issue short-lived tokens where possible and rotate long-lived credentials on a schedule.
+- Key rotation: enforce periodic rotation for keys and certificates and maintain automated processes for rollover.
+
+Operational Security & Monitoring
+- Structured logging & correlation IDs: logs include correlation identifiers (deviceId, messageId) without storing sensitive PII.
+- Monitoring & alerting: monitor Pub/Sub backlog, function error rates, DB latency, and unusual traffic; alert on anomalies.
+- Audit logs: capture cloud audit logs for admin actions and access to sensitive resources.
+- Intrusion detection & alerting: integrate with IDS/IPS or cloud-native security tools to detect suspicious behaviors.
+
+Access Control & Governance
+- RBAC & least privilege: enforce role-based access across GCP, MongoDB, and internal systems; limit admin privileges.
+- Environment separation: separate dev/staging/prod resources and credentials to reduce blast radius.
+- Change control: deploy changes via CI/CD pipelines with gated approvals and automated tests.
+
+Data Protection & Privacy
+- Data minimization: store only required telemetry and metadata; strip unnecessary PII before storage.
+- Retention & archival: implement TTLs, archival policies, and anonymization routines for older data.
+- Compliance: document controls required for applicable standards (GDPR, HIPAA, etc.) and ensure logging/auditing meets requirements.
+
+Incident Response & Recovery
+- Playbooks: maintain incident response playbooks for data breaches, service outages, and key compromise.
+- Forensics: retain sufficient logs and backups for post-incident investigation.
+- Recovery: test backups and recovery procedures periodically; maintain RTO/RPO targets and validate them.
+
+Development & CI/CD Security
+- Static analysis & SCA: run static code analysis and software composition analysis in CI to detect vulnerabilities early.
+- Test secrets scanning: prevent accidental secret commits using pre-commit hooks and CI checks.
+- Signed releases & immutable artifacts: produce signed build artifacts and store them in artifact registries with immutability.
+
+Operational Best Practices
+- Regular patching: apply security patches to dependencies, runtimes, and OS images promptly.
+- Penetration testing: periodically perform security assessments and third-party audits.
+- Least-privilege reviews: periodically review IAM roles and DB permissions and remove unnecessary privileges.
+
+Examples
+
+1) HTTPS (Express) — server-side TLS with redirect from HTTP
+
+```javascript
+// minimal HTTPS server (Node.js + Express)
+const fs = require('fs');
+const https = require('https');
+const express = require('express');
+
+const app = express();
+app.use(express.json());
+
+app.post('/api/readings', (req, res) => {
+	// assume auth middleware verified token
+	res.status(200).send({ ok: true });
+});
+
+const options = {
+	key: fs.readFileSync('/etc/ssl/private/server.key'),
+	cert: fs.readFileSync('/etc/ssl/cert/server.crt'),
+};
+
+https.createServer(options, app).listen(443, () => {
+	console.log('HTTPS server listening on 443');
+});
+
+// redirect HTTP -> HTTPS (in a separate small HTTP server)
+const http = require('http');
+http.createServer((req, res) => {
+	res.writeHead(301, { Location: 'https://' + req.headers.host + req.url });
+	res.end();
+}).listen(80);
+```
+
+If using a reverse proxy (recommended), terminate TLS in Nginx and forward to your app over localhost:
+
+```nginx
+server {
+	listen 443 ssl;
+	server_name example.com;
+	ssl_certificate /etc/ssl/cert/server.crt;
+	ssl_certificate_key /etc/ssl/private/server.key;
+
+	location / {
+		proxy_pass http://127.0.0.1:3000;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header Host $host;
+	}
+}
+```
+
+2) Device HTTPS example (curl)
+
+```bash
+curl -X POST https://example.com/api/readings \
+	-H "Content-Type: application/json" \
+	-H "Authorization: Bearer <token>" \
+	--data '{"deviceId":"dev-1","timestamp":"2026-01-01T00:00:00Z","measurements":{"temp":22}}' \
+	--cacert /path/to/ca.pem
+```
+
+3) Data validation — Cloud Function (Joi example)
+
+```javascript
+// functions/processSensorReading/index.js
+const Joi = require('joi');
+const { MongoClient } = require('mongodb');
+
+const schema = Joi.object({
+	deviceId: Joi.string().required(),
+	timestamp: Joi.string().isoDate().required(),
+	measurements: Joi.object().required(),
+	metadata: Joi.object().optional(),
+});
+
+let client;
+exports.processSensorReading = async (message) => {
+	const payload = JSON.parse(Buffer.from(message.data, 'base64').toString());
+	const { error, value } = schema.validate(payload);
+	if (error) {
+		console.error('validation failed', error.message);
+		// optionally publish to a dead-letter topic or record validation error
+		throw new Error('Invalid payload');
+	}
+
+	if (!client) {
+		client = new MongoClient(process.env.MONGO_URI);
+		await client.connect();
+	}
+	const db = client.db('iot_dashboard');
+	await db.collection('sensor_readings').insertOne({ ...value, receivedAt: new Date() });
+};
+```
+
+4) Lightweight validation (no external deps)
+
+```javascript
+function validate(payload) {
+	if (typeof payload.deviceId !== 'string' || !payload.deviceId) return false;
+	if (!Date.parse(payload.timestamp)) return false;
+	if (typeof payload.measurements !== 'object') return false;
+	return true;
+}
+
+if (!validate(payload)) throw new Error('invalid');
+```
+
+5) HTTPS + validation best-practice checklist
+- Enforce `https` for all endpoints; redirect HTTP to HTTPS.
+- Validate all incoming payloads before any processing or DB writes.
+- Authenticate requests (Bearer tokens, mTLS, or signed payloads).
+- Rate-limit endpoints and enforce max payload sizes.
+- Log validation failures to a secure audit stream or DLQ for investigation.
+
+Notes & Limitations
+- Some measures (hardware secure elements, VPC Service Controls, CMEK) depend on deployment choices and cloud provider support; enable them where feasible for production.
+- Implementing every control may increase operational complexity and cost—adapt controls to risk profile and compliance needs.

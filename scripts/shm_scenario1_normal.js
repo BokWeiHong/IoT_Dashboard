@@ -3,7 +3,7 @@
 
 const mqtt = require("mqtt");
 
-const MQTT_URL = process.env.MQTT_URL || "mqtt://localhost:1883";
+const MQTT_URL = process.env.MQTT_URL || "mqtt://chuckbok.cloud-ip.cc:1883";
 const MQTT_TOPIC = process.env.MQTT_TOPIC || "iot";
 
 // You can adjust these IDs/locations or override via env
